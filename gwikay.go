@@ -7,8 +7,6 @@ package main
 /*
 Here are some simple tasks you might want to tackle on your own:
 
-- Store templates in tmpl/ and page data in data/.
-- Add a handler to make the web root redirect to /view/FrontPage.
 - Spruce up the page templates by making them valid HTML and adding some CSS rules.
 - Implement inter-page linking by converting instances of [PageName] to
   <a href="/view/PageName">PageName</a>. (hint: you could use regexp.ReplaceAllFunc to do this)
@@ -29,7 +27,10 @@ import (
 /// regexp (shield from rando files written)
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-z0-9]+)$")
 /// templating
-var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+const tmpl_location = "tmpl/"
+const data_location = "data/"
+var templates = template.Must(
+  template.ParseFiles(tmpl_location + "edit.html", tmpl_location + "view.html"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
   err := templates.ExecuteTemplate(w, tmpl + ".html", p)
@@ -53,6 +54,7 @@ func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
 
 
 func main() {
+  http.HandleFunc("/", makeHandler(redirectFrontHandler))
   http.HandleFunc("/view/", makeHandler(viewHandler))
   http.HandleFunc("/edit/", makeHandler(editHandler))
   http.HandleFunc("/save/", makeHandler(saveHandler))
@@ -64,6 +66,9 @@ func main() {
 
 func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
   return func(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Path == "/" {
+      http.Redirect(w, r, r.URL.String() + "view/FrontPage", 301)
+    }
     m := validPath.FindStringSubmatch(r.URL.Path)
     if m == nil {
       http.NotFound(w, r)
@@ -75,6 +80,10 @@ func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.Hand
 }
 
 ///
+
+func redirectFrontHandler(w http.ResponseWriter, r *http.Request, title string) {
+  http.Redirect(w, r, "http://localhost:8080/view/FrontPage", 301)
+}
 
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
   p, err := loadPage(title)
@@ -113,12 +122,12 @@ type Page struct {
 
 func (p *Page) save() error {
   filename := p.Title + ".txt"
-  return ioutil.WriteFile(filename, p.Body, 0600)
+  return ioutil.WriteFile(data_location + filename, p.Body, 0600)
 }
 
 func loadPage(title string) (*Page, error) {
   filename := title + ".txt"
-  body, err := ioutil.ReadFile(filename)
+  body, err := ioutil.ReadFile(data_location + filename)
   if err != nil {
     return nil, err
   }
